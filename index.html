@@ -702,14 +702,39 @@ function renderBanners(){
   $('#banners').innerHTML = h;
 }
 var RENDERERS = {};
+function renderFailed(err){
+  var el = document.getElementById('v-'+curView);
+  if(!el) return;
+  try{ if(window.console && console.error) console.error('[生活台] 模块渲染失败:', err); }catch(e){}
+  el.innerHTML =
+    '<div class="bare">'+
+      '<div class="hd"><h3>该模块暂时无法显示</h3><span class="tiny muted">数据与页面可能不兼容</span></div>'+
+      '<div class="empty">'+svgIcon('box',30)+
+        '<div>当前保存的数据与页面版本不兼容，导致这里无法渲染。<br>'+
+        '请先在「数据与备份」里导出 JSON 备份，然后清理数据或导入正确的备份。</div></div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:2px 0 4px">'+
+        '<button class="btn sm soft" data-act="data.export">'+svgIcon('data',14)+'导出备份</button>'+
+        '<button class="btn sm soft" data-act="data.wipe">'+svgIcon('trash',14)+'清空并重置</button>'+
+      '</div>'+
+    '</div>';
+}
 function renderCurrent(){
   var el = document.getElementById('v-'+curView);
   if(!el) return;
   var fn = RENDERERS[curView];
-  if(fn) el.innerHTML = fn();
+  if(!fn) return;
+  try{
+    el.innerHTML = fn();
+  }catch(err){
+    renderFailed(err);
+  }
 }
 function refreshAll(){
-  renderNav(); renderHeader(); renderBanners(); renderCurrent(); paintSync();
+  try{ renderNav(); }catch(e){ try{ console.error('[生活台] nav:', e); }catch(_){ } }
+  try{ renderHeader(); }catch(e){ try{ console.error('[生活台] header:', e); }catch(_){ } }
+  try{ renderBanners(); }catch(e){ try{ console.error('[生活台] banners:', e); }catch(_){ } }
+  try{ renderCurrent(); }catch(e){ try{ console.error('[生活台] current:', e); }catch(_){ } }
+  try{ paintSync(); }catch(e){ }
 }
 function goView(k){
   curView = VIEWS.filter(function(v){return v.k===k;})[0] ? k : 'today';
@@ -2128,7 +2153,11 @@ ACTIONS['data.wipe'] = function(){
 };
 
 /* ---------- 启动 ---------- */
+window.addEventListener('error', function(ev){
+  try{ if(window.console && console.error) console.error('[生活台] 全局错误:', ev && ev.error || ev && ev.message); }catch(e){}
+});
 function boot(){
+  try{
   load();
   renderNav();
   var h = (location.hash||'').replace('#/','');
@@ -2148,6 +2177,16 @@ function boot(){
   setInterval(function(){
     if(todayStr() !== lastDay){ lastDay = todayStr(); refreshAll(); }
   }, 60000);
+  }catch(err){
+    try{ if(window.console && console.error) console.error('[生活台] 启动失败:', err); }catch(e){}
+    try{ toast('页面启动出错，可尝试「数据与备份」里清空并重置。', 'bad'); }catch(e){}
+    try{ document.getElementById('v-'+curView).innerHTML =
+      '<div class="bare"><div class="hd"><h3>启动出错</h3></div><div class="empty"><div>页面初始化失败，通常是本地数据不兼容导致。<br>请到「数据与备份」导出备份、或点击清空并重置。</div></div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:2px 0 4px">'+
+        '<button class="btn sm soft" data-act="data.export">'+svgIcon('data',14)+'导出备份</button>'+
+        '<button class="btn sm soft" data-act="data.wipe">'+svgIcon('trash',14)+'清空并重置</button></div></div>';
+    }catch(e){}
+  }
 }
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
